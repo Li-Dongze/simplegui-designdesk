@@ -3,7 +3,10 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 var rootDir = fileURLToPath(new URL(".", import.meta.url));
+var repoName = "simplegui-designdesk";
+var isGitHubPagesBuild = process.env.GITHUB_ACTIONS === "true";
 export default defineConfig({
+    base: isGitHubPagesBuild ? "/".concat(repoName, "/") : "/",
     plugins: [react()],
     resolve: {
         alias: {
