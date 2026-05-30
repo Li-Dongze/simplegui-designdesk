@@ -100,6 +100,14 @@ pre {
   min-height: 180px;
   max-height: 72vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bottom-rule-host > .bottom-rule-panel {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .panel-splitter {
@@ -522,6 +530,88 @@ body.is-resizing-panels * {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.collab-panel {
+  flex: 0 0 240px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.collab-panel.is-collapsed {
+  flex: 0 0 auto;
+}
+
+.collab-panel-header {
+  border-bottom: 1px solid rgba(139, 148, 117, 0.35);
+}
+
+.collab-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.collab-panel-intro {
+  font-size: 0.82rem;
+  color: #4d5940;
+}
+
+.collab-script-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: #4f5d3f;
+}
+
+.collab-script-box textarea {
+  min-height: 120px;
+  max-height: 260px;
+  width: 100%;
+  resize: vertical;
+  font-family: "Consolas", "Cascadia Code", "Courier New", monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.collab-status-line {
+  font-size: 0.82rem;
+  color: #49573a;
+}
+
+.collab-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.collab-log-item {
+  border: 1px solid #c8cfb7;
+  border-radius: 10px;
+  background: rgba(250, 250, 243, 0.9);
+  padding: 8px 10px;
+}
+
+.collab-log-item.is-error {
+  border-color: #c9775d;
+  background: #fff2ee;
+}
+
+.collab-log-item.is-ok {
+  border-color: #c8cfb7;
+}
+
+.collab-log-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78rem;
 }
 
 .rule-panel-layout {
