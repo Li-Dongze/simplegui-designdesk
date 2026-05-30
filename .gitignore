@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.pi-agents/
+
+*.log
+*.tsbuildinfo
+
+tmp_polar_clock.png
+
+.DS_Store
+Thumbs.db
