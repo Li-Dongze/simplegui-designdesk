@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as R
 import { LeftSidebar } from "@/components/layout/LeftSidebar";
 import { RightInspector } from "@/components/layout/RightInspector";
 import { BottomRulePanel } from "@/components/layout/BottomRulePanel";
-import { CollabDesignPanel } from "@/components/layout/CollabDesignPanel";
 import { TopToolbar } from "@/components/layout/TopToolbar";
 import { Workspace } from "@/components/layout/Workspace";
 
@@ -154,7 +153,6 @@ export function AppShell() {
       />
       <div className="bottom-rule-host">
         <BottomRulePanel />
-        <CollabDesignPanel />
       </div>
     </div>
   );

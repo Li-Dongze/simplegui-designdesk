@@ -36,27 +36,6 @@ export interface DesignDeskSnapshot {
   dinoGame: ReturnType<typeof useProjectStore.getState>["dinoGame"];
 }
 
-export interface DesignDeskApiCommand {
-  method: keyof DesignDeskApi;
-  args?: unknown[];
-}
-
-export interface DesignDeskApiOperationRecord {
-  id: number;
-  timestamp: number;
-  timeIso: string;
-  method: keyof DesignDeskApi;
-  args: unknown[];
-  status: "ok" | "error";
-  durationMs: number;
-  resultSummary?: string;
-  result?: unknown;
-  error?: string;
-}
-
-export const DESIGN_DESK_API_READY_EVENT = "simplegui-designdesk-api-ready";
-export const DESIGN_DESK_API_OPERATION_EVENT = "simplegui-designdesk-api-operation";
-
 export interface DesignDeskApi {
   readonly version: string;
   readonly name: "SimpleGUIDesignDeskAPI";
@@ -65,10 +44,6 @@ export interface DesignDeskApi {
   projectText: () => string;
   parseProjectText: (text: string) => ProjectDocument;
   exportArtifact: (kind: ExportArtifactKind) => ReturnType<typeof buildExportArtifact>;
-  run: (commands: DesignDeskApiCommand[]) => unknown[];
-  runScript: (scriptText: string) => unknown[];
-  operationHistory: () => DesignDeskApiOperationRecord[];
-  clearOperationHistory: () => void;
   setMode: (mode: EditorMode) => void;
   setScale: (scale: number) => void;
   undo: () => void;
@@ -161,252 +136,15 @@ function cloneSnapshot(): DesignDeskSnapshot {
 
 function helpLines(): string[] {
   return [
-    "SimpleGUIDesignDeskAPI 用法:",
+    "SimpleGUIDesignDeskAPI usage:",
     "1) window.SimpleGUIDesignDeskApi.snapshot()",
-    "2) window.SimpleGUIDesignDeskApi.run([{ method: 'setMode', args: ['simulate'] }])",
+    "2) window.SimpleGUIDesignDeskApi.setMode('simulate')",
     "3) window.SimpleGUIDesignDeskApi.addWidget('list', { x: 4, y: 6 })",
     "4) window.SimpleGUIDesignDeskApi.sendSimulatorKey('enter')",
     "5) window.SimpleGUIDesignDeskApi.buildThreeLevelMenu3x3()",
     "6) window.SimpleGUIDesignDeskApi.playIkunBmpVideo(18)",
     "7) window.SimpleGUIDesignDeskApi.startDinoGame()",
   ];
-}
-
-function invokeByName(api: DesignDeskApi, method: keyof DesignDeskApi, args: unknown[]): unknown {
-  const target = api[method];
-  if (typeof target !== "function") {
-    throw new Error(`API method is not callable: ${String(method)}`);
-  }
-  return (target as (...params: unknown[]) => unknown)(...args);
-}
-
-const OPERATION_HISTORY_LIMIT = 400;
-let operationIdSeed = 0;
-const operationRecords: DesignDeskApiOperationRecord[] = [];
-const NON_RECORDED_METHODS = new Set<keyof DesignDeskApi>([
-  "help",
-  "snapshot",
-  "projectText",
-  "parseProjectText",
-  "exportArtifact",
-  "operationHistory",
-  "clearOperationHistory",
-  "run",
-  "runScript",
-]);
-
-function safeCloneValue<T>(value: T): T {
-  try {
-    return structuredClone(value);
-  } catch {
-    try {
-      return JSON.parse(JSON.stringify(value)) as T;
-    } catch {
-      return value;
-    }
-  }
-}
-
-function summarizeResult(value: unknown): string {
-  if (value === undefined) {
-    return "undefined";
-  }
-  if (value === null) {
-    return "null";
-  }
-  if (typeof value === "string") {
-    return value.length > 120 ? `${value.slice(0, 117)}...` : value;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return `Array(${value.length})`;
-  }
-  if (typeof value === "object") {
-    const keys = Object.keys(value as Record<string, unknown>);
-    return `Object(${keys.slice(0, 4).join(",")}${keys.length > 4 ? ",..." : ""})`;
-  }
-  return typeof value;
-}
-
-function dispatchOperationRecord(record: DesignDeskApiOperationRecord) {
-  operationRecords.push(record);
-  if (operationRecords.length > OPERATION_HISTORY_LIMIT) {
-    operationRecords.splice(0, operationRecords.length - OPERATION_HISTORY_LIMIT);
-  }
-  window.dispatchEvent(
-    new CustomEvent<DesignDeskApiOperationRecord>(DESIGN_DESK_API_OPERATION_EVENT, {
-      detail: record,
-    }),
-  );
-}
-
-function isPromiseLike(value: unknown): value is Promise<unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "then" in value &&
-    typeof (value as { then?: unknown }).then === "function"
-  );
-}
-
-function parseCommandLineToken(token: string): unknown {
-  const trimmed = token.trim();
-  if (!trimmed) {
-    return "";
-  }
-  if (trimmed === "true") {
-    return true;
-  }
-  if (trimmed === "false") {
-    return false;
-  }
-  if (trimmed === "null") {
-    return null;
-  }
-  if (trimmed === "undefined") {
-    return undefined;
-  }
-
-  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-    const numeric = Number(trimmed);
-    if (Number.isFinite(numeric)) {
-      return numeric;
-    }
-  }
-
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return trimmed;
-  }
-}
-
-function normalizeScriptCommands(scriptText: string): DesignDeskApiCommand[] {
-  const trimmed = scriptText.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) {
-      return parsed.map((entry, index) => {
-        if (!entry || typeof entry !== "object") {
-          throw new Error(`Invalid command at index ${index}.`);
-        }
-        const command = entry as { method?: unknown; args?: unknown };
-        if (typeof command.method !== "string") {
-          throw new Error(`Command at index ${index} is missing method.`);
-        }
-        return {
-          method: command.method as keyof DesignDeskApi,
-          args: Array.isArray(command.args) ? command.args : [],
-        };
-      });
-    }
-  } catch {
-    // fall back to line parser
-  }
-
-  return trimmed
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"))
-    .map((line) => {
-      const divider = line.indexOf(" ");
-      if (divider < 0) {
-        return { method: line as keyof DesignDeskApi, args: [] };
-      }
-      const method = line.slice(0, divider).trim() as keyof DesignDeskApi;
-      const rawArgs = line.slice(divider + 1).trim();
-      const args = rawArgs
-        ? rawArgs
-            .split(/\s+/)
-            .map((token) => parseCommandLineToken(token))
-        : [];
-      return { method, args };
-    });
-}
-
-function wrapApiWithRecorder(rawApi: DesignDeskApi): DesignDeskApi {
-  const wrapped = new Proxy(rawApi, {
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver);
-      if (typeof property !== "string" || typeof value !== "function") {
-        return value;
-      }
-
-      const method = property as keyof DesignDeskApi;
-      const fn = value as (...params: unknown[]) => unknown;
-      if (NON_RECORDED_METHODS.has(method)) {
-        return fn.bind(target);
-      }
-
-      return (...args: unknown[]) => {
-        const startedAt = Date.now();
-        const baseRecord = {
-          id: ++operationIdSeed,
-          timestamp: startedAt,
-          timeIso: new Date(startedAt).toISOString(),
-          method,
-          args: safeCloneValue(args),
-        };
-
-        try {
-          const result = fn.apply(target, args);
-          if (isPromiseLike(result)) {
-            return result
-              .then((resolved) => {
-                const record: DesignDeskApiOperationRecord = {
-                  ...baseRecord,
-                  status: "ok",
-                  durationMs: Date.now() - startedAt,
-                  result: safeCloneValue(resolved),
-                  resultSummary: summarizeResult(resolved),
-                };
-                dispatchOperationRecord(record);
-                return resolved;
-              })
-              .catch((error: unknown) => {
-                const message = error instanceof Error ? error.message : String(error);
-                const record: DesignDeskApiOperationRecord = {
-                  ...baseRecord,
-                  status: "error",
-                  durationMs: Date.now() - startedAt,
-                  error: message,
-                };
-                dispatchOperationRecord(record);
-                throw error;
-              });
-          }
-
-          const record: DesignDeskApiOperationRecord = {
-            ...baseRecord,
-            status: "ok",
-            durationMs: Date.now() - startedAt,
-            result: safeCloneValue(result),
-            resultSummary: summarizeResult(result),
-          };
-          dispatchOperationRecord(record);
-          return result;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          const record: DesignDeskApiOperationRecord = {
-            ...baseRecord,
-            status: "error",
-            durationMs: Date.now() - startedAt,
-            error: message,
-          };
-          dispatchOperationRecord(record);
-          throw error;
-        }
-      };
-    },
-  });
-
-  return wrapped as DesignDeskApi;
 }
 
 function createMenuItems(baseId: string, prefix: string): ChoiceItem[] {
@@ -559,7 +297,10 @@ function buildThreeLevelMenu3x3Project(): ProjectDocument {
   return project;
 }
 
-const IKUN_BMP_NAMES = Array.from({ length: 24 }, (_, index) => `坤坤跳舞分解${String(index + 1).padStart(2, "0")}.bmp`);
+const IKUN_BMP_NAMES = Array.from(
+  { length: 24 },
+  (_, index) => `坤坤跳舞分解${String(index + 1).padStart(2, "0")}.bmp`,
+);
 let cachedIkunFrames: MonoBitmap[] | null = null;
 
 async function loadIkunDanceFrames(): Promise<MonoBitmap[]> {
@@ -579,36 +320,13 @@ async function loadIkunDanceFrames(): Promise<MonoBitmap[]> {
 
 function createDesignDeskApi(): DesignDeskApi {
   return {
-    version: "0.3.0",
+    version: "0.4.0",
     name: "SimpleGUIDesignDeskAPI",
     help: () => helpLines(),
     snapshot: () => cloneSnapshot(),
     projectText: () => formatProjectDocument(getState().project),
     parseProjectText: (text) => parseProjectDocument(text),
     exportArtifact: (kind) => buildExportArtifact(getState().project, kind),
-    run: (commands) => {
-      return commands.map((command) =>
-        invokeByName(
-          api,
-          command.method,
-          Array.isArray(command.args) ? command.args : [],
-        ),
-      );
-    },
-    runScript: (scriptText) => {
-      const commands = normalizeScriptCommands(scriptText);
-      return commands.map((command) =>
-        invokeByName(
-          api,
-          command.method,
-          Array.isArray(command.args) ? command.args : [],
-        ),
-      );
-    },
-    operationHistory: () => operationRecords.map((record) => safeCloneValue(record)),
-    clearOperationHistory: () => {
-      operationRecords.splice(0, operationRecords.length);
-    },
     setMode: (mode) => getState().setMode(mode),
     setScale: (scale) => getState().setScale(scale as ScaleOption),
     undo: () => getState().undo(),
@@ -698,24 +416,13 @@ function createDesignDeskApi(): DesignDeskApi {
   };
 }
 
-const rawApi = createDesignDeskApi();
-const api = wrapApiWithRecorder(rawApi);
+const api = createDesignDeskApi();
 
 export function installDesignDeskApi(): void {
   window.SimpleGUIDesignDeskApi = api;
-  window.dispatchEvent(
-    new CustomEvent<DesignDeskApi>(DESIGN_DESK_API_READY_EVENT, {
-      detail: api,
-    }),
-  );
 }
 
 declare global {
-  interface WindowEventMap {
-    "simplegui-designdesk-api-ready": CustomEvent<DesignDeskApi>;
-    "simplegui-designdesk-api-operation": CustomEvent<DesignDeskApiOperationRecord>;
-  }
-
   interface Window {
     SimpleGUIDesignDeskApi: DesignDeskApi;
   }
