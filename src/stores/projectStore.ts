@@ -14,6 +14,7 @@ import {
   advanceSimulatorClock,
   createSimulatorSession,
   dispatchSimulatorKey,
+  setSimulatorVariableValue as applySimulatorVariableValue,
 } from "@/simulator/runtime";
 import { advanceDinoGame, createDinoGameOverlay, handleDinoGameKey } from "@/utils/dinoGame";
 import { cloneProjectDocument, findPicture, findWidgetPicture } from "@/utils/projectFormat";
@@ -21,6 +22,7 @@ import type {
   AbstractKey,
   Action,
   ConditionItem,
+  DebugPanelKind,
   DinoGameOverlay,
   EditorMode,
   Picture,
@@ -303,6 +305,7 @@ interface StoreState {
   issues: ValidationIssue[];
   dirty: boolean;
   mode: EditorMode;
+  debugPanel: DebugPanelKind;
   scale: ScaleOption;
   activePictureId: string;
   projectTemplateId: "blank" | "official-demo" | "custom";
@@ -313,6 +316,9 @@ interface StoreState {
   history: ProjectDocument[];
   future: ProjectDocument[];
   setMode: (mode: EditorMode) => void;
+  openDebugPanel: (panel: Exclude<DebugPanelKind, "none">) => void;
+  closeDebugPanel: () => void;
+  setSimulatorVariableValue: (variableId: string, value: VariableValue) => void;
   setScale: (scale: ScaleOption) => void;
   selectProject: () => void;
   selectPicture: (pictureId: string) => void;
@@ -389,6 +395,7 @@ function createInitialState() {
     issues: validateProject(project),
     dirty: false,
     mode: "edit" as EditorMode,
+    debugPanel: "none" as DebugPanelKind,
     scale: 4 as ScaleOption,
     activePictureId,
     projectTemplateId: "official-demo" as const,
@@ -441,6 +448,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
       if (mode === "simulate") {
         set({
           mode,
+          debugPanel: "none",
           simulator: createSimulatorSession(state.project),
           videoOverlay: null,
           dinoGame: null,
@@ -459,9 +467,35 @@ export const useProjectStore = create<StoreState>((set, get) => {
 
       set({
         mode,
+        debugPanel: "none",
         activePictureId: normalized.activePictureId,
         selection: normalized.selection,
         simulator: null,
+        videoOverlay: null,
+        dinoGame: null,
+      });
+    },
+    openDebugPanel: (panel) => {
+      const state = get();
+      const simulator = state.simulator ?? createSimulatorSession(state.project);
+      set({
+        mode: "simulate",
+        debugPanel: panel,
+        simulator,
+        videoOverlay: null,
+        dinoGame: null,
+      });
+    },
+    closeDebugPanel: () => {
+      set({ debugPanel: "none" });
+    },
+    setSimulatorVariableValue: (variableId, value) => {
+      const state = get();
+      const simulator = state.simulator ?? createSimulatorSession(state.project);
+      const nextSimulator = applySimulatorVariableValue(state.project, simulator, variableId, value);
+      set({
+        mode: "simulate",
+        simulator: nextSimulator,
         videoOverlay: null,
         dinoGame: null,
       });
@@ -501,6 +535,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
         issues: validateProject(project),
         dirty: false,
         mode: "edit",
+        debugPanel: "none",
         activePictureId: normalized.activePictureId,
         projectTemplateId: templateId,
         selection: normalized.selection,
@@ -519,6 +554,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
         issues: validateProject(project),
         dirty: false,
         mode: "edit",
+        debugPanel: "none",
         activePictureId: normalized.activePictureId,
         projectTemplateId: "custom",
         selection: normalized.selection,
@@ -1364,6 +1400,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
       const state = get();
       set({
         mode: "simulate",
+        debugPanel: "none",
         simulator: state.simulator ?? createSimulatorSession(state.project),
         videoOverlay: structuredClone(overlay),
         dinoGame: null,
@@ -1371,6 +1408,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
     },
     stopVideoOverlay: () => {
       set({
+        debugPanel: "none",
         videoOverlay: null,
       });
     },
@@ -1378,6 +1416,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
       const state = get();
       set({
         mode: "simulate",
+        debugPanel: "none",
         simulator: state.simulator ?? createSimulatorSession(state.project),
         videoOverlay: null,
         dinoGame: createDinoGameOverlay(Date.now()),
@@ -1385,6 +1424,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
     },
     stopDinoGame: () => {
       set({
+        debugPanel: "none",
         dinoGame: null,
       });
     },
@@ -1392,6 +1432,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
       const state = get();
       set({
         mode: "simulate",
+        debugPanel: state.debugPanel,
         simulator: createSimulatorSession(state.project),
         dinoGame: state.dinoGame ? createDinoGameOverlay(Date.now(), state.dinoGame.rngState) : null,
       });
@@ -1401,6 +1442,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
       const pictureId = state.simulator?.currentPictureId ?? state.activePictureId;
       set({
         mode: "edit",
+        debugPanel: "none",
         activePictureId: pictureId,
         selection: { kind: "picture", pictureId },
         simulator: null,

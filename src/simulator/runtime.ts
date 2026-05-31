@@ -12,6 +12,7 @@ import type {
   RuleEventTimer,
   RuleEventValueChange,
   RuleEventWidget,
+  PidServoModelState,
   SimulatorEventLogEntry,
   SimulatorSession,
   VariableDefinition,
@@ -29,6 +30,26 @@ const LIST_LAYOUTS = [
   { x: 0, y: 0, width: 192, height: 96 },
   { x: 0, y: 0, width: 192, height: 128 },
 ] as const;
+
+interface PidRoleBindings {
+  spId: string;
+  pvId: string;
+  kpId: string;
+  kiId?: string;
+  kdId?: string;
+  errId?: string;
+  uId?: string;
+}
+
+const PID_ROLE_KEYWORDS = {
+  sp: ["var_sp", "sp", "setpoint", "target", "goal", "ref"],
+  pv: ["var_pv", "pv", "current", "actual", "feedback", "measure"],
+  kp: ["var_kp", "kp"],
+  ki: ["var_ki", "ki"],
+  kd: ["var_kd", "kd"],
+  err: ["var_err", "err", "error"],
+  u: ["var_u", "u", "output", "control"],
+} as const;
 
 type RuntimeEvent = RuleEvent;
 
@@ -235,6 +256,226 @@ function normalizeStringValue(variable: VariableDefinition, value: string): stri
   return value.slice(0, variable.length).padEnd(Math.min(variable.length, value.length), " ");
 }
 
+function normalizeToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_]+/g, "");
+}
+
+function isPidGainVariable(variable: VariableDefinition): boolean {
+  if (variable.type !== "int") {
+    return false;
+  }
+
+  const idToken = normalizeToken(variable.id);
+  const nameToken = normalizeToken(variable.name);
+  const gainTokens = new Set(["kp", "ki", "kd", "var_kp", "var_ki", "var_kd"]);
+
+  if (gainTokens.has(idToken) || gainTokens.has(nameToken)) {
+    return true;
+  }
+
+  return (
+    idToken.endsWith("_kp") ||
+    idToken.endsWith("_ki") ||
+    idToken.endsWith("_kd") ||
+    nameToken.endsWith("_kp") ||
+    nameToken.endsWith("_ki") ||
+    nameToken.endsWith("_kd")
+  );
+}
+
+function pickVariableIdByKeywords(
+  project: ProjectDocument,
+  keywords: readonly string[],
+): string | undefined {
+  const keywordSet = new Set(keywords.map(normalizeToken));
+  const intVariables = project.variables.filter((variable): variable is Extract<VariableDefinition, { type: "int" }> => variable.type === "int");
+
+  for (const variable of intVariables) {
+    const idToken = normalizeToken(variable.id);
+    if (keywordSet.has(idToken)) {
+      return variable.id;
+    }
+  }
+
+  for (const variable of intVariables) {
+    const nameToken = normalizeToken(variable.name);
+    if (keywordSet.has(nameToken)) {
+      return variable.id;
+    }
+  }
+
+  for (const variable of intVariables) {
+    const idToken = normalizeToken(variable.id);
+    const nameToken = normalizeToken(variable.name);
+    if (keywords.some((keyword) => {
+      const normalized = normalizeToken(keyword);
+      return idToken.includes(normalized) || nameToken.includes(normalized);
+    })) {
+      return variable.id;
+    }
+  }
+
+  return undefined;
+}
+
+function resolvePidRoleBindings(project: ProjectDocument): PidRoleBindings | null {
+  const spId = pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.sp);
+  const pvId = pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.pv);
+  const kpId = pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.kp);
+  if (!spId || !pvId || !kpId) {
+    return null;
+  }
+
+  return {
+    spId,
+    pvId,
+    kpId,
+    kiId: pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.ki),
+    kdId: pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.kd),
+    errId: pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.err),
+    uId: pickVariableIdByKeywords(project, PID_ROLE_KEYWORDS.u),
+  };
+}
+
+function readNumericStoreValue(
+  session: SimulatorSession,
+  variableId: string | undefined,
+  fallback = 0,
+): number {
+  if (!variableId) {
+    return fallback;
+  }
+
+  const raw = session.variableStore[variableId];
+  const numeric = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getOrCreatePidModelState(session: SimulatorSession, timerId: string): PidServoModelState {
+  const existing = session.pidModelStates[timerId];
+  if (existing) {
+    return existing;
+  }
+
+  const created: PidServoModelState = {
+    initialized: false,
+    integral: 0,
+    prevError: 0,
+    velocity: 0,
+  };
+  session.pidModelStates[timerId] = created;
+  return created;
+}
+
+function pushRealtimeGraphValueByVariable(
+  project: ProjectDocument,
+  session: SimulatorSession,
+  variableId: string,
+  value: number,
+) {
+  const picture = findPicture(project, session.currentPictureId);
+  if (!picture) {
+    return;
+  }
+
+  for (const widget of picture.widgets) {
+    if (widget.type !== "realtimeGraph") {
+      continue;
+    }
+    if (widget.props.valueVarId !== variableId) {
+      continue;
+    }
+
+    const buffer = session.graphBuffers[widget.id] ?? [];
+    session.graphBuffers[widget.id] = [...buffer, value].slice(-widget.props.capacity);
+  }
+}
+
+function shouldUsePidServoModel(project: ProjectDocument, timerId: string): boolean {
+  const timer = project.timers.find((item) => item.id === timerId);
+  if (!timer) {
+    return false;
+  }
+
+  const token = `${normalizeToken(timer.id)} ${normalizeToken(timer.name)}`;
+  return token.includes("pid");
+}
+
+function runPidServoModelStep(
+  project: ProjectDocument,
+  session: SimulatorSession,
+  timerId: string,
+  dtSeconds: number,
+  queue: RuntimeEvent[],
+): boolean {
+  if (!shouldUsePidServoModel(project, timerId)) {
+    return false;
+  }
+
+  const bindings = resolvePidRoleBindings(project);
+  if (!bindings) {
+    return false;
+  }
+
+  const sp = readNumericStoreValue(session, bindings.spId);
+  const pv = readNumericStoreValue(session, bindings.pvId);
+  const kpRaw = readNumericStoreValue(session, bindings.kpId);
+  const kiRaw = readNumericStoreValue(session, bindings.kiId, 0);
+  const kdRaw = readNumericStoreValue(session, bindings.kdId, 0);
+
+  const state = getOrCreatePidModelState(session, timerId);
+  const dt = Math.max(0.001, dtSeconds);
+
+  if (!state.initialized) {
+    state.initialized = true;
+    state.prevError = sp - pv;
+    state.integral = 0;
+    state.velocity = 0;
+  }
+
+  // Gain scaling is tuned to make integer Kp/Ki/Kd react in a realistic servo-like range.
+  const kp = kpRaw * 0.2;
+  const ki = kiRaw * 0.06;
+  const kd = kdRaw * 0.035;
+  const outputLimit = 70;
+  const integralLimit = 200;
+
+  const error = sp - pv;
+  state.integral = clampNumber(state.integral + (error * dt), -integralLimit, integralLimit);
+  const derivative = (error - state.prevError) / dt;
+  let output = (kp * error) + (ki * state.integral) + (kd * derivative);
+  output = clampNumber(output, -outputLimit, outputLimit);
+
+  // 2nd-order plant: x'' = wn^2(u - x) - 2*zeta*wn*x'
+  // Lower damping keeps natural overshoot/jitter around SP when gains are aggressive.
+  const naturalFrequency = 3.6;
+  const dampingRatio = 0.38;
+  const acceleration =
+    (naturalFrequency * naturalFrequency * (output - pv)) -
+    (2 * dampingRatio * naturalFrequency * state.velocity);
+
+  state.velocity += acceleration * dt;
+  const nextPv = pv + (state.velocity * dt);
+  state.prevError = error;
+
+  setVariable(project, session, bindings.pvId, nextPv, queue);
+  if (bindings.errId) {
+    setVariable(project, session, bindings.errId, error, queue);
+  }
+  if (bindings.uId) {
+    setVariable(project, session, bindings.uId, output, queue);
+  }
+
+  const pvInt = Math.round(nextPv);
+  pushRealtimeGraphValueByVariable(project, session, bindings.pvId, pvInt);
+  logEvent(session, `pid ${timerId} sp=${Math.round(sp)} pv=${pvInt} u=${Math.round(output)}`);
+  return true;
+}
+
 function setVariable(
   project: ProjectDocument,
   session: SimulatorSession,
@@ -250,7 +491,10 @@ function setVariable(
   let nextValue: VariableValue = value;
 
   if (variable.type === "int" && typeof value === "number") {
-    nextValue = Math.max(variable.min, Math.min(variable.max, Math.round(value)));
+    const rounded = Math.round(value);
+    nextValue = isPidGainVariable(variable)
+      ? rounded
+      : Math.max(variable.min, Math.min(variable.max, rounded));
   }
 
   if (variable.type === "bool") {
@@ -1315,6 +1559,7 @@ export function createSimulatorSession(project: ProjectDocument, wallClockMs = D
     focusedWidgetId: null,
     graphBuffers: {},
     eventLog: [],
+    pidModelStates: {},
   };
 
   seed.focusedWidgetId = firstFocusableWidgetId(project, seed, startPictureId);
@@ -1485,7 +1730,11 @@ export function advanceSimulatorClock(
 
     while (next.clockMs - runtime.lastTickMs >= timer.intervalMs) {
       runtime.lastTickMs += timer.intervalMs;
-      pushEvent(queue, { kind: "onTimer", timerId: timer.id });
+      const dtSeconds = timer.intervalMs / 1000;
+      const pidHandled = runPidServoModelStep(project, next, timer.id, dtSeconds, queue);
+      if (!pidHandled) {
+        pushEvent(queue, { kind: "onTimer", timerId: timer.id });
+      }
       if (!timer.repeat) {
         runtime.enabled = false;
         break;
@@ -1518,6 +1767,23 @@ export function advanceSimulatorClock(
       syncPolarClockVariables(project, next, queue);
     }
   }
+
+  if (queue.length === 0) {
+    return next;
+  }
+
+  return processEventQueue(project, next, queue);
+}
+
+export function setSimulatorVariableValue(
+  project: ProjectDocument,
+  session: SimulatorSession,
+  variableId: string,
+  value: VariableValue,
+): SimulatorSession {
+  const next = structuredClone(session) as SimulatorSession;
+  const queue: RuntimeEvent[] = [];
+  setVariable(project, next, variableId, value, queue);
 
   if (queue.length === 0) {
     return next;

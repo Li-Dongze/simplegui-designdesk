@@ -1,4 +1,5 @@
 export type EditorMode = "edit" | "simulate";
+export type DebugPanelKind = "none" | "pid";
 
 export type ScaleOption = number;
 
@@ -626,6 +627,13 @@ export interface SimulatorEventLogEntry {
   label: string;
 }
 
+export interface PidServoModelState {
+  initialized: boolean;
+  integral: number;
+  prevError: number;
+  velocity: number;
+}
+
 export interface SimulatorSession {
   clockMs: number;
   lastWallClockMs: number;
@@ -637,6 +645,7 @@ export interface SimulatorSession {
   focusedWidgetId: string | null;
   graphBuffers: Record<string, number[]>;
   eventLog: SimulatorEventLogEntry[];
+  pidModelStates: Record<string, PidServoModelState>;
 }
 
 export interface ValidationIssue {

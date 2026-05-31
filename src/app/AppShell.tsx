@@ -4,6 +4,8 @@ import { RightInspector } from "@/components/layout/RightInspector";
 import { BottomRulePanel } from "@/components/layout/BottomRulePanel";
 import { TopToolbar } from "@/components/layout/TopToolbar";
 import { Workspace } from "@/components/layout/Workspace";
+import { PidDebugSidebar } from "@/components/debug/PidDebugSidebar";
+import { useProjectStore } from "@/stores/projectStore";
 
 type DragKind = "left" | "right" | "bottom";
 
@@ -29,6 +31,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export function AppShell() {
+  const debugPanel = useProjectStore((state) => state.debugPanel);
   const [leftWidth, setLeftWidth] = useState(300);
   const [rightWidth, setRightWidth] = useState(340);
   const [bottomHeight, setBottomHeight] = useState(300);
@@ -50,7 +53,8 @@ export function AppShell() {
       const deltaY = event.clientY - dragState.startY;
 
       if (dragState.kind === "left") {
-        const maxByCenter = layoutWidth - dragState.startRightWidth - MIN_CENTER_WIDTH - 16;
+        const rightPaneWidth = dragState.startRightWidth;
+        const maxByCenter = layoutWidth - rightPaneWidth - MIN_CENTER_WIDTH - 16;
         const next = clamp(
           dragState.startLeftWidth + deltaX,
           MIN_LEFT_WIDTH,
@@ -99,7 +103,7 @@ export function AppShell() {
       window.removeEventListener("pointerup", handlePointerUp);
       document.body.classList.remove("is-resizing-panels");
     };
-  }, [dragState]);
+  }, [debugPanel, dragState]);
 
   const startDrag =
     (kind: DragKind) =>
@@ -133,27 +137,31 @@ export function AppShell() {
         <div
           className="panel-splitter panel-splitter-vertical"
           role="separator"
-          aria-label="调整左侧与画布宽度"
+          aria-label="Resize left panel"
           onPointerDown={startDrag("left")}
         />
         <Workspace />
         <div
           className="panel-splitter panel-splitter-vertical"
           role="separator"
-          aria-label="调整画布与右侧宽度"
+          aria-label="Resize right panel"
           onPointerDown={startDrag("right")}
         />
-        <RightInspector />
+        {debugPanel === "pid" ? <PidDebugSidebar /> : <RightInspector />}
       </div>
-      <div
-        className="panel-splitter panel-splitter-horizontal"
-        role="separator"
-        aria-label="调整画布与规则区高度"
-        onPointerDown={startDrag("bottom")}
-      />
-      <div className="bottom-rule-host">
-        <BottomRulePanel />
-      </div>
+      {debugPanel === "none" ? (
+        <>
+          <div
+            className="panel-splitter panel-splitter-horizontal"
+            role="separator"
+            aria-label="Resize bottom panel"
+            onPointerDown={startDrag("bottom")}
+          />
+          <div className="bottom-rule-host">
+            <BottomRulePanel />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

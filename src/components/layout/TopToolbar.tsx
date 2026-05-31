@@ -1,6 +1,6 @@
 import { useMemo, useRef, type ChangeEvent } from "react";
-import { useProjectStore } from "@/stores/projectStore";
 import { projectTemplates } from "@/schema/projectTemplates";
+import { useProjectStore } from "@/stores/projectStore";
 import { formatProjectDocument, parseProjectDocument } from "@/utils/projectFormat";
 import { buildExportArtifact, downloadTextFile } from "@/utils/simpleguiCodeExport";
 
@@ -14,9 +14,12 @@ export function TopToolbar() {
   const project = useProjectStore((state) => state.project);
   const dirty = useProjectStore((state) => state.dirty);
   const mode = useProjectStore((state) => state.mode);
+  const debugPanel = useProjectStore((state) => state.debugPanel);
   const scale = useProjectStore((state) => state.scale);
   const templateId = useProjectStore((state) => state.projectTemplateId);
   const setMode = useProjectStore((state) => state.setMode);
+  const openDebugPanel = useProjectStore((state) => state.openDebugPanel);
+  const closeDebugPanel = useProjectStore((state) => state.closeDebugPanel);
   const setScale = useProjectStore((state) => state.setScale);
   const loadProject = useProjectStore((state) => state.loadProject);
   const loadTemplate = useProjectStore((state) => state.loadTemplate);
@@ -67,6 +70,14 @@ export function TopToolbar() {
     downloadTextFile(artifact.filename, artifact.text, artifact.mimeType);
   };
 
+  const handleTogglePidDebug = () => {
+    if (debugPanel === "pid") {
+      closeDebugPanel();
+      return;
+    }
+    openDebugPanel("pid");
+  };
+
   return (
     <header className="top-toolbar panel">
       <div className="toolbar-title">
@@ -76,6 +87,7 @@ export function TopToolbar() {
           {dirty ? " · 未保存" : " · 已保存"}
           {" · "}
           {modeLabels[mode]}
+          {debugPanel === "pid" ? " · PID调试页" : ""}
           {activeTemplate ? ` · ${activeTemplate.label}` : ""}
         </span>
       </div>
@@ -107,10 +119,17 @@ export function TopToolbar() {
         </button>
         <button
           type="button"
-          className={mode === "simulate" ? "is-active" : undefined}
+          className={mode === "simulate" && debugPanel === "none" ? "is-active" : undefined}
           onClick={() => setMode("simulate")}
         >
           模拟
+        </button>
+        <button
+          type="button"
+          className={debugPanel === "pid" ? "is-active" : undefined}
+          onClick={handleTogglePidDebug}
+        >
+          PID调试
         </button>
         <label className="toolbar-scale-input">
           <span>缩放</span>
@@ -140,10 +159,10 @@ export function TopToolbar() {
           导出说明
         </button>
         <button type="button" onClick={() => handleExport("ir")}>
-          导出 IR
+          导出IR
         </button>
         <button type="button" onClick={() => handleExport("c")}>
-          导出 C 骨架
+          导出C骨架
         </button>
       </div>
 

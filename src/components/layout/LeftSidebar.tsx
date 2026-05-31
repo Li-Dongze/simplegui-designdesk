@@ -1,6 +1,6 @@
 import type { DragEvent } from "react";
-import { SidebarSection } from "@/components/layout/SidebarSection";
 import { widgetCatalog, widgetCategoryLabels, widgetCategoryOrder } from "@/contracts/widgetContracts";
+import { SidebarSection } from "@/components/layout/SidebarSection";
 import { useProjectStore } from "@/stores/projectStore";
 import { summarizeRule } from "@/utils/viewModel";
 
@@ -11,12 +11,17 @@ function typeLabel(type: string): string {
 export function LeftSidebar() {
   const project = useProjectStore((state) => state.project);
   const activePictureId = useProjectStore((state) => state.activePictureId);
+  const debugPanel = useProjectStore((state) => state.debugPanel);
   const selection = useProjectStore((state) => state.selection);
+
   const selectPicture = useProjectStore((state) => state.selectPicture);
   const selectWidget = useProjectStore((state) => state.selectWidget);
   const selectVariable = useProjectStore((state) => state.selectVariable);
   const selectTimer = useProjectStore((state) => state.selectTimer);
   const selectResource = useProjectStore((state) => state.selectResource);
+
+  const openDebugPanel = useProjectStore((state) => state.openDebugPanel);
+
   const addPicture = useProjectStore((state) => state.addPicture);
   const duplicatePicture = useProjectStore((state) => state.duplicatePicture);
   const deletePicture = useProjectStore((state) => state.deletePicture);
@@ -73,7 +78,7 @@ export function LeftSidebar() {
                 <div>
                   <strong>{picture.name}</strong>
                   <div className="entity-meta">
-                    {picture.id} · {picture.widgets.length} 个控件
+                    {picture.id} · {picture.widgets.length} 控件
                   </div>
                 </div>
                 <div className="entity-actions">
@@ -135,6 +140,19 @@ export function LeftSidebar() {
         </div>
       </SidebarSection>
 
+      <SidebarSection title="调试入口">
+        <div className="stack-list compact-list">
+          <button
+            type="button"
+            className={`list-button ${debugPanel === "pid" ? "is-selected" : ""}`}
+            onClick={() => openDebugPanel("pid")}
+          >
+            <span>外部输入调试（PID）</span>
+            <span className="entity-meta">目标值 SP / 采集值 PV</span>
+          </button>
+        </div>
+      </SidebarSection>
+
       <SidebarSection title="当前页面控件">
         <div className="stack-list">
           {activePicture?.widgets.length ? (
@@ -189,7 +207,7 @@ export function LeftSidebar() {
               );
             })
           ) : (
-            <div className="placeholder-item">当前页面还没有控件，先从组件库拖一个进来。</div>
+            <div className="placeholder-item">当前页面还没有控件，可先从组件库添加。</div>
           )}
         </div>
       </SidebarSection>
@@ -265,8 +283,7 @@ export function LeftSidebar() {
         <div className="stack-list compact-list">
           {project.resources.length ? (
             project.resources.map((resource) => {
-              const isSelected =
-                selection.kind === "resource" && selection.resourceId === resource.id;
+              const isSelected = selection.kind === "resource" && selection.resourceId === resource.id;
               return (
                 <button
                   key={resource.id}
@@ -280,7 +297,7 @@ export function LeftSidebar() {
               );
             })
           ) : (
-            <div className="placeholder-item">资源还没有导入，可以先创建资源条目再绑定。</div>
+            <div className="placeholder-item">还没有资源，可先创建条目再绑定到控件。</div>
           )}
         </div>
       </SidebarSection>

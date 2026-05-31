@@ -1,0 +1,1723 @@
+{
+  "version": 1,
+  "project": {
+    "name": "Servo Angle PID Tuning",
+    "createdAt": "2026-05-30T15:30:00+08:00",
+    "updatedAt": "2026-05-30T15:30:00+08:00"
+  },
+  "screen": {
+    "width": 128,
+    "height": 64,
+    "foreground": "#000000",
+    "background": "#ffffff",
+    "buffered": true
+  },
+  "resources": [],
+  "variables": [
+    {
+      "id": "var_sp",
+      "name": "Target Angle",
+      "type": "int",
+      "initial": 0,
+      "min": -45,
+      "max": 45,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_pv",
+      "name": "Current Angle",
+      "type": "int",
+      "initial": -20,
+      "min": -45,
+      "max": 45,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_err",
+      "name": "Error",
+      "type": "int",
+      "initial": 0,
+      "min": -90,
+      "max": 90,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_prev_err",
+      "name": "Previous Error",
+      "type": "int",
+      "initial": 0,
+      "min": -90,
+      "max": 90,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_d_err",
+      "name": "Delta Error",
+      "type": "int",
+      "initial": 0,
+      "min": -90,
+      "max": 90,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_i_acc",
+      "name": "Integral Accumulator",
+      "type": "int",
+      "initial": 0,
+      "min": -200,
+      "max": 200,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_u",
+      "name": "Controller Output",
+      "type": "int",
+      "initial": 0,
+      "min": -20,
+      "max": 20,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_kp",
+      "name": "Kp",
+      "type": "int",
+      "initial": 2,
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_ki",
+      "name": "Ki",
+      "type": "int",
+      "initial": 1,
+      "min": 0,
+      "max": 3,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_kd",
+      "name": "Kd",
+      "type": "int",
+      "initial": 1,
+      "min": 0,
+      "max": 3,
+      "step": 1,
+      "readonly": false
+    },
+    {
+      "id": "var_tmp",
+      "name": "Tmp",
+      "type": "int",
+      "initial": 0,
+      "min": -200,
+      "max": 200,
+      "step": 1,
+      "readonly": false
+    }
+  ],
+  "timers": [
+    {
+      "id": "timer_pid",
+      "name": "PID Tick",
+      "intervalMs": 120,
+      "repeat": true,
+      "enabledOnStart": false,
+      "targetPictureId": "pic_pid_tuning"
+    }
+  ],
+  "pictures": [
+    {
+      "id": "pic_pid_tuning",
+      "name": "PID Angle Loop",
+      "title": "PID Angle Loop",
+      "widgets": [
+        {
+          "id": "w_err_frame",
+          "type": "shape",
+          "name": "ERR Frame",
+          "rect": {
+            "x": 94,
+            "y": 0,
+            "width": 34,
+            "height": 12
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 0,
+          "props": {
+            "kind": "rect",
+            "fill": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "w_tune_frame",
+          "type": "shape",
+          "name": "Tune Frame",
+          "rect": {
+            "x": 0,
+            "y": 13,
+            "width": 128,
+            "height": 15
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 0,
+          "props": {
+            "kind": "rect",
+            "fill": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "w_lbl_err",
+          "type": "textLabel",
+          "name": "Label Error",
+          "rect": {
+            "x": 98,
+            "y": 2,
+            "width": 18,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "ERR",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "left",
+            "textVarId": null
+          }
+        },
+        {
+          "id": "w_err_value",
+          "type": "textLabel",
+          "name": "Error Value",
+          "rect": {
+            "x": 116,
+            "y": 2,
+            "width": 11,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "0",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "right",
+            "textVarId": "var_err"
+          }
+        },
+        {
+          "id": "w_lbl_kp",
+          "type": "textLabel",
+          "name": "Label Kp",
+          "rect": {
+            "x": 1,
+            "y": 17,
+            "width": 12,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "Kp",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "left",
+            "textVarId": null
+          }
+        },
+        {
+          "id": "w_kp_box",
+          "type": "numberVariableBox",
+          "name": "Kp Box",
+          "rect": {
+            "x": 14,
+            "y": 16,
+            "width": 16,
+            "height": 10
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": true,
+          "zIndex": 2,
+          "props": {
+            "font": "SGUI_DEFAULT_FONT_8",
+            "alignment": "center",
+            "min": 0,
+            "max": 5,
+            "valueVarId": "var_kp",
+            "step": 1
+          }
+        },
+        {
+          "id": "w_lbl_ki",
+          "type": "textLabel",
+          "name": "Label Ki",
+          "rect": {
+            "x": 33,
+            "y": 17,
+            "width": 12,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "Ki",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "left",
+            "textVarId": null
+          }
+        },
+        {
+          "id": "w_ki_box",
+          "type": "numberVariableBox",
+          "name": "Ki Box",
+          "rect": {
+            "x": 46,
+            "y": 16,
+            "width": 16,
+            "height": 10
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": true,
+          "zIndex": 2,
+          "props": {
+            "font": "SGUI_DEFAULT_FONT_8",
+            "alignment": "center",
+            "min": 0,
+            "max": 3,
+            "valueVarId": "var_ki",
+            "step": 1
+          }
+        },
+        {
+          "id": "w_lbl_kd",
+          "type": "textLabel",
+          "name": "Label Kd",
+          "rect": {
+            "x": 65,
+            "y": 17,
+            "width": 12,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "Kd",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "left",
+            "textVarId": null
+          }
+        },
+        {
+          "id": "w_kd_box",
+          "type": "numberVariableBox",
+          "name": "Kd Box",
+          "rect": {
+            "x": 78,
+            "y": 16,
+            "width": 16,
+            "height": 10
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": true,
+          "zIndex": 2,
+          "props": {
+            "font": "SGUI_DEFAULT_FONT_8",
+            "alignment": "center",
+            "min": 0,
+            "max": 3,
+            "valueVarId": "var_kd",
+            "step": 1
+          }
+        },
+        {
+          "id": "w_lbl_u",
+          "type": "textLabel",
+          "name": "Label U",
+          "rect": {
+            "x": 103,
+            "y": 17,
+            "width": 10,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "U",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "left",
+            "textVarId": null
+          }
+        },
+        {
+          "id": "w_u_value",
+          "type": "textLabel",
+          "name": "Output Value",
+          "rect": {
+            "x": 114,
+            "y": 16,
+            "width": 13,
+            "height": 8
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 1,
+          "props": {
+            "text": "0",
+            "font": "SGUI_DEFAULT_FONT_8",
+            "drawMode": "normal",
+            "multiline": false,
+            "align": "right",
+            "textVarId": "var_u"
+          }
+        },
+        {
+          "id": "w_graph_frame",
+          "type": "shape",
+          "name": "Graph Frame",
+          "rect": {
+            "x": 0,
+            "y": 29,
+            "width": 128,
+            "height": 35
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 0,
+          "props": {
+            "kind": "rect",
+            "fill": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "w_graph",
+          "type": "realtimeGraph",
+          "name": "Angle Graph",
+          "rect": {
+            "x": 1,
+            "y": 29,
+            "width": 126,
+            "height": 34
+          },
+          "visible": true,
+          "enabled": true,
+          "focusable": false,
+          "zIndex": 0,
+          "props": {
+            "valueVarId": "var_pv",
+            "min": -45,
+            "max": 45,
+            "xStepPixel": 1,
+            "enableBaseline": true,
+            "baselineValue": 0,
+            "capacity": 126
+          }
+        }
+      ],
+      "enterActions": [
+        {
+          "type": "clearGraphBuffer",
+          "widgetId": "w_graph"
+        },
+        {
+          "type": "setVariable",
+          "variableId": "var_prev_err",
+          "value": 0
+        },
+        {
+          "type": "setVariable",
+          "variableId": "var_i_acc",
+          "value": 0
+        },
+        {
+          "type": "startTimer",
+          "timerId": "timer_pid"
+        }
+      ],
+      "leaveActions": [
+        {
+          "type": "stopTimer",
+          "timerId": "timer_pid"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r_pid_tab",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "tab"
+      },
+      "actions": [
+        {
+          "type": "focusNext"
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_kp_up",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "up",
+        "widgetId": "w_kp_box"
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_kp",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_kp_down",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "down",
+        "widgetId": "w_kp_box"
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_kp",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_ki_up",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "up",
+        "widgetId": "w_ki_box"
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_ki",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_ki_down",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "down",
+        "widgetId": "w_ki_box"
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_ki",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_kd_up",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "up",
+        "widgetId": "w_kd_box"
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_kd",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_kd_down",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onKeyPress",
+        "key": "down",
+        "widgetId": "w_kd_box"
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_kd",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": true
+    },
+    {
+      "id": "r_tick_core",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "actions": [
+        {
+          "type": "setVariableFromVariable",
+          "variableId": "var_tmp",
+          "fromVariableId": "var_pv"
+        },
+        {
+          "type": "negateVariable",
+          "variableId": "var_tmp"
+        },
+        {
+          "type": "setVariableFromVariable",
+          "variableId": "var_err",
+          "fromVariableId": "var_sp"
+        },
+        {
+          "type": "addVariableFromVariable",
+          "variableId": "var_err",
+          "fromVariableId": "var_tmp"
+        },
+        {
+          "type": "setVariableFromVariable",
+          "variableId": "var_d_err",
+          "fromVariableId": "var_err"
+        },
+        {
+          "type": "setVariableFromVariable",
+          "variableId": "var_tmp",
+          "fromVariableId": "var_prev_err"
+        },
+        {
+          "type": "negateVariable",
+          "variableId": "var_tmp"
+        },
+        {
+          "type": "addVariableFromVariable",
+          "variableId": "var_d_err",
+          "fromVariableId": "var_tmp"
+        },
+        {
+          "type": "setVariableFromVariable",
+          "variableId": "var_prev_err",
+          "fromVariableId": "var_err"
+        },
+        {
+          "type": "setVariable",
+          "variableId": "var_u",
+          "value": 0
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_pos_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 2
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_ki",
+            "operator": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_pos_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 2
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_ki",
+            "operator": "gte",
+            "value": 2
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_pos_3",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 2
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_ki",
+            "operator": "gte",
+            "value": 3
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_neg_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -2
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_ki",
+            "operator": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_neg_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -2
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_ki",
+            "operator": "gte",
+            "value": 2
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_neg_3",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -2
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_ki",
+            "operator": "gte",
+            "value": 3
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_decay_pos",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "eq",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_i_acc",
+            "operator": "gt",
+            "value": 0
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_decay_neg",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "eq",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_i_acc",
+            "operator": "lt",
+            "value": 0
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_i_acc",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_pos_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 1
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_pos_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 4
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 2
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_pos_3",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 8
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 3
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_pos_4",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 14
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 4
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_pos_5",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gte",
+            "value": 22
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 5
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_neg_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -1
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_neg_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -4
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 2
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_neg_3",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -8
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 3
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_neg_4",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -14
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 4
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_p_neg_5",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lte",
+            "value": -22
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kp",
+            "operator": "gte",
+            "value": 5
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_out_pos_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_i_acc",
+            "operator": "gte",
+            "value": 16
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_out_pos_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_i_acc",
+            "operator": "gte",
+            "value": 48
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_out_neg_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_i_acc",
+            "operator": "lte",
+            "value": -16
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_i_out_neg_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_i_acc",
+            "operator": "lte",
+            "value": -48
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_d_damp_pos_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_d_err",
+            "operator": "lt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kd",
+            "operator": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_d_damp_pos_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_d_err",
+            "operator": "lt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kd",
+            "operator": "gte",
+            "value": 2
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_d_damp_pos_3",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "gt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_d_err",
+            "operator": "lt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kd",
+            "operator": "gte",
+            "value": 3
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "decreaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_d_damp_neg_1",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_d_err",
+            "operator": "gt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kd",
+            "operator": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_d_damp_neg_2",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_d_err",
+            "operator": "gt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kd",
+            "operator": "gte",
+            "value": 2
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_d_damp_neg_3",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "condition": {
+        "mode": "all",
+        "items": [
+          {
+            "kind": "variableCompare",
+            "variableId": "var_err",
+            "operator": "lt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_d_err",
+            "operator": "gt",
+            "value": 0
+          },
+          {
+            "kind": "variableCompare",
+            "variableId": "var_kd",
+            "operator": "gte",
+            "value": 3
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "increaseVariable",
+          "variableId": "var_u",
+          "step": 1
+        },
+        {
+          "type": "increaseVariable",
+          "variableId": "var_pv",
+          "step": 1
+        }
+      ],
+      "stopAfterMatch": false
+    },
+    {
+      "id": "r_push_graph",
+      "pictureId": "pic_pid_tuning",
+      "event": {
+        "kind": "onTimer",
+        "timerId": "timer_pid"
+      },
+      "actions": [
+        {
+          "type": "pushGraphValue",
+          "widgetId": "w_graph",
+          "valueSource": "fromVariable",
+          "fromVariableId": "var_pv"
+        }
+      ],
+      "stopAfterMatch": false
+    }
+  ],
+  "simulator": {
+    "startPictureId": "pic_pid_tuning",
+    "keyMode": "dual",
+    "showGrid": true,
+    "fps": 20
+  }
+}

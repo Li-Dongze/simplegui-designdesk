@@ -921,31 +921,30 @@ function drawGraphWidget(
 ) {
   const props: RealtimeGraphProps = widget.props;
   const values = getGraphBuffer(widget.id, state.simulator);
+  ctx.save();
   clipToWidget(ctx, widget);
+
   if (props.enableBaseline) {
     const ratio = (props.baselineValue - props.min) / Math.max(1, props.max - props.min);
     const y = widget.rect.y + widget.rect.height - 1 - Math.round(ratio * (widget.rect.height - 1));
     ctx.fillRect(widget.rect.x, y, widget.rect.width, 1);
   }
 
-  if (values.length < 2) {
-    return;
+  if (values.length >= 2) {
+    ctx.beginPath();
+    values.forEach((value, index) => {
+      const x = widget.rect.x + Math.min(widget.rect.width - 1, index * Math.max(1, props.xStepPixel));
+      const ratio = (value - props.min) / Math.max(1, props.max - props.min);
+      const y = widget.rect.y + widget.rect.height - 1 - Math.round(ratio * (widget.rect.height - 1));
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
   }
 
-  ctx.save();
-  clipToWidget(ctx, widget);
-  ctx.beginPath();
-  values.forEach((value, index) => {
-    const x = widget.rect.x + Math.min(widget.rect.width - 1, index * Math.max(1, props.xStepPixel));
-    const ratio = (value - props.min) / Math.max(1, props.max - props.min);
-    const y = widget.rect.y + widget.rect.height - 1 - Math.round(ratio * (widget.rect.height - 1));
-    if (index === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  });
-  ctx.stroke();
   ctx.restore();
 }
 
