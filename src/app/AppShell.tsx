@@ -24,7 +24,7 @@ const MAX_LEFT_WIDTH = 680;
 const MIN_RIGHT_WIDTH = 240;
 const MAX_RIGHT_WIDTH = 760;
 const MIN_CENTER_WIDTH = 340;
-const MIN_BOTTOM_HEIGHT = 180;
+const MIN_BOTTOM_HEIGHT = 96;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -32,11 +32,17 @@ function clamp(value: number, min: number, max: number) {
 
 export function AppShell() {
   const debugPanel = useProjectStore((state) => state.debugPanel);
+  const theme = useProjectStore((state) => state.theme);
+  const isBitmapDebug = debugPanel === "bitmap";
   const [leftWidth, setLeftWidth] = useState(300);
   const [rightWidth, setRightWidth] = useState(340);
   const [bottomHeight, setBottomHeight] = useState(300);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const mainLayoutRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => {
     if (!dragState) {
@@ -53,7 +59,7 @@ export function AppShell() {
       const deltaY = event.clientY - dragState.startY;
 
       if (dragState.kind === "left") {
-        const rightPaneWidth = dragState.startRightWidth;
+        const rightPaneWidth = isBitmapDebug ? 0 : dragState.startRightWidth;
         const maxByCenter = layoutWidth - rightPaneWidth - MIN_CENTER_WIDTH - 16;
         const next = clamp(
           dragState.startLeftWidth + deltaX,
@@ -103,7 +109,7 @@ export function AppShell() {
       window.removeEventListener("pointerup", handlePointerUp);
       document.body.classList.remove("is-resizing-panels");
     };
-  }, [debugPanel, dragState]);
+  }, [debugPanel, dragState, isBitmapDebug]);
 
   const startDrag =
     (kind: DragKind) =>
@@ -132,22 +138,28 @@ export function AppShell() {
       }
     >
       <TopToolbar />
-      <div className="app-main-resizable" ref={mainLayoutRef}>
-        <LeftSidebar />
-        <div
-          className="panel-splitter panel-splitter-vertical"
-          role="separator"
-          aria-label="Resize left panel"
-          onPointerDown={startDrag("left")}
-        />
-        <Workspace />
-        <div
-          className="panel-splitter panel-splitter-vertical"
-          role="separator"
-          aria-label="Resize right panel"
-          onPointerDown={startDrag("right")}
-        />
-        {debugPanel === "pid" ? <PidDebugSidebar /> : <RightInspector />}
+      <div className={`app-main-resizable ${isBitmapDebug ? "is-debug" : ""}`} ref={mainLayoutRef}>
+        {isBitmapDebug ? (
+          <Workspace />
+        ) : (
+          <>
+            <LeftSidebar />
+            <div
+              className="panel-splitter panel-splitter-vertical"
+              role="separator"
+              aria-label="Resize left panel"
+              onPointerDown={startDrag("left")}
+            />
+            <Workspace />
+            <div
+              className="panel-splitter panel-splitter-vertical"
+              role="separator"
+              aria-label="Resize right panel"
+              onPointerDown={startDrag("right")}
+            />
+            {debugPanel === "pid" ? <PidDebugSidebar /> : <RightInspector />}
+          </>
+        )}
       </div>
       {debugPanel === "none" ? (
         <>

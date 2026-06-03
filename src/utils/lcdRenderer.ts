@@ -35,6 +35,14 @@ type RenderState = {
   scale: number;
 };
 
+type LcdTheme = "light" | "dark";
+
+type LcdPalette = {
+  pixelOn: string;
+  pixelOff: string;
+  grid: string;
+};
+
 type FontGlyph = {
   width: number;
   height: number;
@@ -1242,8 +1250,9 @@ function createMonochromeBuffer(state: RenderState): HTMLCanvasElement {
 
 export function paintLcdScreen(
   canvas: HTMLCanvasElement,
-  state: Omit<RenderState, "scale"> & { scale: number; showPixelGrid: boolean },
+  state: Omit<RenderState, "scale"> & { scale: number; showPixelGrid: boolean; theme?: LcdTheme },
 ) {
+  const palette = getLcdPalette(state.theme ?? "light");
   const width = state.project.screen.width;
   const height = state.project.screen.height;
   const pitch = Math.max(2, Math.round(state.scale));
@@ -1269,7 +1278,7 @@ export function paintLcdScreen(
   }
 
   const imageData = bufferCtx.getImageData(0, 0, width, height).data;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = palette.pixelOff;
   ctx.fillRect(0, 0, outputWidth, outputHeight);
 
   for (let y = 0; y < height; y += 1) {
@@ -1279,13 +1288,13 @@ export function paintLcdScreen(
         (imageData[index] ?? 0) + (imageData[index + 1] ?? 0) + (imageData[index + 2] ?? 0);
       const alpha = imageData[index + 3] ?? 0;
       const isLit = alpha > 0 && brightness > 20;
-      ctx.fillStyle = isLit ? "#000000" : "#ffffff";
+      ctx.fillStyle = isLit ? palette.pixelOn : palette.pixelOff;
       ctx.fillRect(x * pitch, y * pitch, pitch, pitch);
     }
   }
 
   if (showGrid) {
-    ctx.fillStyle = "#e7e7e7";
+    ctx.fillStyle = palette.grid;
 
     for (let x = 1; x < width; x += 1) {
       ctx.fillRect(x * pitch - 1, 0, 1, outputHeight);
@@ -1300,8 +1309,9 @@ export function paintLcdScreen(
 export function paintLcdBitmapScreen(
   canvas: HTMLCanvasElement,
   bitmap: MonoBitmap,
-  options: { scale: number; showPixelGrid: boolean },
+  options: { scale: number; showPixelGrid: boolean; theme?: LcdTheme },
 ) {
+  const palette = getLcdPalette(options.theme ?? "light");
   const width = bitmap.width;
   const height = bitmap.height;
   const pitch = Math.max(2, Math.round(options.scale));
@@ -1319,20 +1329,20 @@ export function paintLcdBitmapScreen(
 
   ctx.clearRect(0, 0, outputWidth, outputHeight);
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = palette.pixelOff;
   ctx.fillRect(0, 0, outputWidth, outputHeight);
 
   for (let y = 0; y < height; y += 1) {
     const row = bitmap.rows[y] ?? "";
     for (let x = 0; x < width; x += 1) {
       const isLit = row[x] === "1";
-      ctx.fillStyle = isLit ? "#000000" : "#ffffff";
+      ctx.fillStyle = isLit ? palette.pixelOn : palette.pixelOff;
       ctx.fillRect(x * pitch, y * pitch, pitch, pitch);
     }
   }
 
   if (showGrid) {
-    ctx.fillStyle = "#e7e7e7";
+    ctx.fillStyle = palette.grid;
 
     for (let x = 1; x < width; x += 1) {
       ctx.fillRect(x * pitch - 1, 0, 1, outputHeight);
@@ -1342,4 +1352,20 @@ export function paintLcdBitmapScreen(
       ctx.fillRect(0, y * pitch - 1, outputWidth, 1);
     }
   }
+}
+
+function getLcdPalette(theme: LcdTheme): LcdPalette {
+  if (theme === "dark") {
+    return {
+      pixelOn: "#ffffff",
+      pixelOff: "#000000",
+      grid: "#2a2a2a",
+    };
+  }
+
+  return {
+    pixelOn: "#000000",
+    pixelOff: "#ffffff",
+    grid: "#e7e7e7",
+  };
 }

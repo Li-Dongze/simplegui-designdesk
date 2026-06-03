@@ -50,11 +50,11 @@ export function LeftSidebar() {
     <aside className="left-sidebar panel">
       <SidebarSection
         title="页面树"
-        action={
+        action={(
           <button type="button" className="mini-button" onClick={addPicture}>
             + 页面
           </button>
-        }
+        )}
       >
         <div className="stack-list">
           {project.pictures.map((picture) => {
@@ -150,6 +150,14 @@ export function LeftSidebar() {
             <span>外部输入调试（PID）</span>
             <span className="entity-meta">目标值 SP / 采集值 PV</span>
           </button>
+          <button
+            type="button"
+            className={`list-button ${debugPanel === "bitmap" ? "is-selected" : ""}`}
+            onClick={() => openDebugPanel("bitmap")}
+          >
+            <span>图片取模工作台</span>
+            <span className="entity-meta">批量处理 / 单张调参 / LCD实时预览</span>
+          </button>
         </div>
       </SidebarSection>
 
@@ -214,7 +222,7 @@ export function LeftSidebar() {
 
       <SidebarSection
         title="变量"
-        action={
+        action={(
           <div className="inline-actions">
             <button type="button" className="mini-button" onClick={() => addVariable("int")}>
               + 整数
@@ -226,7 +234,7 @@ export function LeftSidebar() {
               + 布尔
             </button>
           </div>
-        }
+        )}
       >
         <div className="stack-list compact-list">
           {project.variables.map((variable) => {
@@ -248,11 +256,11 @@ export function LeftSidebar() {
 
       <SidebarSection
         title="定时器"
-        action={
+        action={(
           <button type="button" className="mini-button" onClick={addTimer}>
             + 定时器
           </button>
-        }
+        )}
       >
         <div className="stack-list compact-list">
           {project.timers.map((timer) => {
@@ -274,11 +282,11 @@ export function LeftSidebar() {
 
       <SidebarSection
         title="资源"
-        action={
+        action={(
           <button type="button" className="mini-button" onClick={addResource}>
             + 资源
           </button>
-        }
+        )}
       >
         <div className="stack-list compact-list">
           {project.resources.length ? (

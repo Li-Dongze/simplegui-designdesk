@@ -306,6 +306,7 @@ interface StoreState {
   dirty: boolean;
   mode: EditorMode;
   debugPanel: DebugPanelKind;
+  theme: "light" | "dark";
   scale: ScaleOption;
   activePictureId: string;
   projectTemplateId: "blank" | "official-demo" | "custom";
@@ -318,6 +319,8 @@ interface StoreState {
   setMode: (mode: EditorMode) => void;
   openDebugPanel: (panel: Exclude<DebugPanelKind, "none">) => void;
   closeDebugPanel: () => void;
+  setTheme: (theme: "light" | "dark") => void;
+  toggleTheme: () => void;
   setSimulatorVariableValue: (variableId: string, value: VariableValue) => void;
   setScale: (scale: ScaleOption) => void;
   selectProject: () => void;
@@ -396,6 +399,7 @@ function createInitialState() {
     dirty: false,
     mode: "edit" as EditorMode,
     debugPanel: "none" as DebugPanelKind,
+    theme: "light" as const,
     scale: 4 as ScaleOption,
     activePictureId,
     projectTemplateId: "official-demo" as const,
@@ -489,6 +493,12 @@ export const useProjectStore = create<StoreState>((set, get) => {
     closeDebugPanel: () => {
       set({ debugPanel: "none" });
     },
+    setTheme: (theme) => {
+      set({ theme: theme === "dark" ? "dark" : "light" });
+    },
+    toggleTheme: () => {
+      set((state) => ({ theme: state.theme === "light" ? "dark" : "light" }));
+    },
     setSimulatorVariableValue: (variableId, value) => {
       const state = get();
       const simulator = state.simulator ?? createSimulatorSession(state.project);
@@ -501,7 +511,7 @@ export const useProjectStore = create<StoreState>((set, get) => {
       });
     },
     setScale: (scale) => {
-      const next = Number.isFinite(scale) ? Math.round(scale) : 4;
+      const next = Number.isFinite(scale) ? Math.round(Number(scale)) : 4;
       set({ scale: Math.max(1, Math.min(40, next)) });
     },
     selectProject: () => set({ selection: { kind: "project" } }),

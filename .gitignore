@@ -7,5 +7,20 @@ dist/
 
 tmp_polar_clock.png
 
+# Local generated frame/video experiments
+public/_ffmpeg_probe/
+public/animation_webm_frames/
+public/ascii_frames_plain/
+public/ascii_frames_stroke/
+public/ascii_video_lowres_540x300.mp4
+public/oled_export_frames/
+public/raw_frames_1920x1080_30fps_988/
+public/vid_20260601_212659_450_10s_frames/
+public/wallpaper_frames/
+public/wallpaper_frames_led_threshold_min/
+public/wallpaper_video_lcd_128x64.mp4
+public/wallpaper_video_lowres_640x360.mp4
+tools/__pycache__/
+
 .DS_Store
 Thumbs.db

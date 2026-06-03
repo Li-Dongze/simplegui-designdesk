@@ -9,6 +9,7 @@ import type { Widget } from "@/types/project";
 export function PixelScreen() {
   const project = useProjectStore((state) => state.project);
   const scale = useProjectStore((state) => state.scale);
+  const theme = useProjectStore((state) => state.theme);
   const mode = useProjectStore((state) => state.mode);
   const activePictureId = useProjectStore((state) => state.activePictureId);
   const selection = useProjectStore((state) => state.selection);
@@ -38,7 +39,6 @@ export function PixelScreen() {
     originRect: Widget["rect"];
   } | null>(null);
   const [hoveredWidgetId, setHoveredWidgetId] = useState<string | null>(null);
-  const [fitScale, setFitScale] = useState<number>(scale);
   const addWidget = useProjectStore((state) => state.addWidget);
 
   const videoFrame = useMemo(() => {
@@ -72,8 +72,7 @@ export function PixelScreen() {
     : videoOverlay
       ? `${videoOverlay.name} (${videoFrame ? "Playing" : "Ready"})`
       : simulator?.currentPictureId ?? picture?.id ?? activePictureId;
-  const effectiveScale = Math.max(1, scale);
-  const isZoomed = effectiveScale > fitScale;
+  const effectiveScale = Math.max(1, Math.round(scale));
   const overlayWidth = screenWidth * effectiveScale;
   const overlayHeight = screenHeight * effectiveScale;
 
@@ -85,32 +84,6 @@ export function PixelScreen() {
   };
 
   useEffect(() => {
-    if (!fitZoneRef.current) {
-      return;
-    }
-
-    const element = fitZoneRef.current;
-    const updateScale = () => {
-      const bounds = element.getBoundingClientRect();
-      const nextScale = Math.max(
-        1,
-        Math.floor(
-          Math.min(
-            bounds.width / screenWidth,
-            bounds.height / screenHeight,
-          ),
-        ),
-      );
-      setFitScale(nextScale);
-    };
-
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [screenHeight, screenWidth]);
-
-  useEffect(() => {
     if (!lcdCanvasRef.current) {
       return;
     }
@@ -119,6 +92,7 @@ export function PixelScreen() {
       paintLcdBitmapScreen(lcdCanvasRef.current, dinoFrame, {
         scale: effectiveScale,
         showPixelGrid: project.simulator.showGrid,
+        theme,
       });
       return;
     }
@@ -127,6 +101,7 @@ export function PixelScreen() {
       paintLcdBitmapScreen(lcdCanvasRef.current, videoFrame, {
         scale: effectiveScale,
         showPixelGrid: project.simulator.showGrid,
+        theme,
       });
       return;
     }
@@ -142,8 +117,34 @@ export function PixelScreen() {
       variableMap,
       scale: effectiveScale,
       showPixelGrid: project.simulator.showGrid,
+      theme,
     });
-  }, [dinoFrame, effectiveScale, picture, project, simulator, variableMap, videoFrame]);
+  }, [dinoFrame, effectiveScale, picture, project, simulator, theme, variableMap, videoFrame]);
+
+  useEffect(() => {
+    const element = fitZoneRef.current;
+    if (!element) {
+      return;
+    }
+
+    const centerScroll = () => {
+      const left = Math.max(0, (element.scrollWidth - element.clientWidth) / 2);
+      const top = Math.max(0, (element.scrollHeight - element.clientHeight) / 2);
+      element.scrollLeft = left;
+      element.scrollTop = top;
+    };
+
+    const initialFrame = window.requestAnimationFrame(centerScroll);
+    const observer = new ResizeObserver(() => {
+      window.requestAnimationFrame(centerScroll);
+    });
+    observer.observe(element);
+
+    return () => {
+      window.cancelAnimationFrame(initialFrame);
+      observer.disconnect();
+    };
+  }, [overlayHeight, overlayWidth]);
 
   const handlePointerDown = (widget: Widget, event: React.PointerEvent<HTMLDivElement>) => {
     if (!picture) {
@@ -277,107 +278,109 @@ export function PixelScreen() {
           <span>{project.screen.width}x{project.screen.height} @{effectiveScale}x</span>
         </div>
         <div className="lcd-bezel">
-          <div className={`lcd-fit-zone ${isZoomed ? "is-zoomed" : ""}`} ref={fitZoneRef}>
-            <div
-              className="lcd-screen-shell"
-              style={{
-                width: `${overlayWidth}px`,
-                height: `${overlayHeight}px`,
-              }}
-              onClick={handleScreenShellClick}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleDrop}
-            >
-              {picture || videoFrame || dinoFrame ? (
-                <>
-                  <canvas
-                    ref={lcdCanvasRef}
-                    className="lcd-pixel-canvas"
-                    width={overlayWidth}
-                    height={overlayHeight}
-                  />
-                  <div
-                    className={`lcd-overlay ${mode === "simulate" ? "is-simulate" : "is-edit"}`}
-                    style={{
-                      width: `${overlayWidth}px`,
-                      height: `${overlayHeight}px`,
-                    }}
-                  >
-                    {picture && !videoFrame && !dinoFrame
-                      ? widgets.map((widget) => {
-                        const visible = getWidgetVisible(widget, simulator);
-                        if (!visible) {
-                          return null;
-                        }
+          <div className="lcd-fit-zone" ref={fitZoneRef}>
+            <div className="lcd-fit-content">
+              <div
+                className={`lcd-screen-shell ${mode === "simulate" ? "is-simulate" : "is-edit"}`}
+                style={{
+                  width: `${overlayWidth}px`,
+                  height: `${overlayHeight}px`,
+                }}
+                onClick={handleScreenShellClick}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleDrop}
+              >
+                {picture || videoFrame || dinoFrame ? (
+                  <>
+                    <canvas
+                      ref={lcdCanvasRef}
+                      className="lcd-pixel-canvas"
+                      width={overlayWidth}
+                      height={overlayHeight}
+                    />
+                    <div
+                      className={`lcd-overlay ${mode === "simulate" ? "is-simulate" : "is-edit"}`}
+                      style={{
+                        width: `${overlayWidth}px`,
+                        height: `${overlayHeight}px`,
+                      }}
+                    >
+                      {picture && !videoFrame && !dinoFrame
+                        ? widgets.map((widget) => {
+                          const visible = getWidgetVisible(widget, simulator);
+                          if (!visible) {
+                            return null;
+                          }
 
-                        const enabled = getWidgetEnabled(widget, simulator);
-                        const isSelected =
-                          selection.kind === "widget" &&
-                          selection.pictureId === picture.id &&
-                          selection.widgetId === widget.id;
+                          const enabled = getWidgetEnabled(widget, simulator);
+                          const isSelected =
+                            selection.kind === "widget" &&
+                            selection.pictureId === picture.id &&
+                            selection.widgetId === widget.id;
 
-                        return (
-                          <div
-                            key={widget.id}
-                            className={[
-                              "lcd-widget-hitbox",
-                              isSelected ? "is-selected" : "",
-                              !enabled ? "is-disabled" : "",
-                              hoveredWidgetId === widget.id ? "is-hovered" : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                            style={{
-                              left: `${widget.rect.x * effectiveScale}px`,
-                              top: `${widget.rect.y * effectiveScale}px`,
-                              width: `${widget.rect.width * effectiveScale}px`,
-                              height: `${widget.rect.height * effectiveScale}px`,
-                              zIndex: widget.zIndex + 1,
-                            }}
-                            onPointerDown={(event) => handlePointerDown(widget, event)}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            onPointerCancel={handlePointerUp}
-                            onClick={(event) => handleWidgetClick(widget, event)}
-                            onMouseEnter={() => setHoveredWidgetId(widget.id)}
-                            onMouseLeave={() =>
-                              setHoveredWidgetId((current) => (current === widget.id ? null : current))
-                            }
-                          >
-                            {mode === "edit" && (
-                              <>
-                                <div className="lcd-widget-outline" />
-                                <div className="lcd-widget-tag">
-                                  <span>{widget.name}</span>
-                                  <span>{widget.type}</span>
-                                </div>
-                                <div className="lcd-widget-resize-layer" aria-hidden="true">
-                                  {resizeHandleDefinitions.map((handle) => (
-                                    <button
-                                      key={`${widget.id}-${handle.direction}`}
-                                      type="button"
-                                      className={`lcd-widget-resize-handle handle-${handle.direction}`}
-                                      aria-label={`${widget.name} ${handle.label}`}
-                                      style={{
-                                        cursor: resizeCursorForDirection(handle.direction),
-                                      }}
-                                      onPointerDown={(event) => handleResizePointerDown(widget, handle.direction, event)}
-                                      onPointerUp={handlePointerUp}
-                                      onPointerCancel={handlePointerUp}
-                                    />
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })
-                      : null}
-                  </div>
-                </>
-              ) : (
-                <div className="screen-empty">请先创建页面，或加载已有工程。</div>
-              )}
+                          return (
+                            <div
+                              key={widget.id}
+                              className={[
+                                "lcd-widget-hitbox",
+                                isSelected ? "is-selected" : "",
+                                !enabled ? "is-disabled" : "",
+                                hoveredWidgetId === widget.id ? "is-hovered" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                              style={{
+                                left: `${widget.rect.x * effectiveScale}px`,
+                                top: `${widget.rect.y * effectiveScale}px`,
+                                width: `${widget.rect.width * effectiveScale}px`,
+                                height: `${widget.rect.height * effectiveScale}px`,
+                                zIndex: widget.zIndex + 1,
+                              }}
+                              onPointerDown={(event) => handlePointerDown(widget, event)}
+                              onPointerMove={handlePointerMove}
+                              onPointerUp={handlePointerUp}
+                              onPointerCancel={handlePointerUp}
+                              onClick={(event) => handleWidgetClick(widget, event)}
+                              onMouseEnter={() => setHoveredWidgetId(widget.id)}
+                              onMouseLeave={() =>
+                                setHoveredWidgetId((current) => (current === widget.id ? null : current))
+                              }
+                            >
+                              {mode === "edit" && (
+                                <>
+                                  <div className="lcd-widget-outline" />
+                                  <div className="lcd-widget-tag">
+                                    <span>{widget.name}</span>
+                                    <span>{widget.type}</span>
+                                  </div>
+                                  <div className="lcd-widget-resize-layer" aria-hidden="true">
+                                    {resizeHandleDefinitions.map((handle) => (
+                                      <button
+                                        key={`${widget.id}-${handle.direction}`}
+                                        type="button"
+                                        className={`lcd-widget-resize-handle handle-${handle.direction}`}
+                                        aria-label={`${widget.name} ${handle.label}`}
+                                        style={{
+                                          cursor: resizeCursorForDirection(handle.direction),
+                                        }}
+                                        onPointerDown={(event) => handleResizePointerDown(widget, handle.direction, event)}
+                                        onPointerUp={handlePointerUp}
+                                        onPointerCancel={handlePointerUp}
+                                      />
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })
+                        : null}
+                    </div>
+                  </>
+                ) : (
+                  <div className="screen-empty">请先创建页面，或加载已有工程。</div>
+                )}
+              </div>
             </div>
           </div>
         </div>

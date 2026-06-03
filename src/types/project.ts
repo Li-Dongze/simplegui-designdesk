@@ -1,5 +1,5 @@
 export type EditorMode = "edit" | "simulate";
-export type DebugPanelKind = "none" | "pid";
+export type DebugPanelKind = "none" | "pid" | "bitmap";
 
 export type ScaleOption = number;
 

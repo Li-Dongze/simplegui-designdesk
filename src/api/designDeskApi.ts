@@ -24,6 +24,7 @@ import type {
 
 export interface DesignDeskSnapshot {
   mode: EditorMode;
+  theme: "light" | "dark";
   scale: number;
   activePictureId: string;
   selection: SelectionTarget;
@@ -45,6 +46,8 @@ export interface DesignDeskApi {
   parseProjectText: (text: string) => ProjectDocument;
   exportArtifact: (kind: ExportArtifactKind) => ReturnType<typeof buildExportArtifact>;
   setMode: (mode: EditorMode) => void;
+  setTheme: (theme: "light" | "dark") => void;
+  toggleTheme: () => void;
   setScale: (scale: number) => void;
   undo: () => void;
   redo: () => void;
@@ -110,6 +113,17 @@ export interface DesignDeskApi {
   setRuleEventKind: (ruleId: string, kind: RuleEventKind) => void;
   buildThreeLevelMenu3x3: () => DesignDeskSnapshot;
   playIkunBmpVideo: (fps?: number) => Promise<DesignDeskSnapshot>;
+  playWallpaperBmpVideo: (fps?: number) => Promise<DesignDeskSnapshot>;
+  playBmpVideoFromFolder: (
+    folderPath: string,
+    fps?: number,
+    overlayName?: string,
+  ) => Promise<DesignDeskSnapshot>;
+  playAsciiBmpVideo: (
+    mode?: "plain" | "stroke",
+    fps?: number,
+  ) => Promise<DesignDeskSnapshot>;
+  playOledExportBmpVideo: (fps?: number) => Promise<DesignDeskSnapshot>;
   stopVideoOverlay: () => DesignDeskSnapshot;
 }
 
@@ -121,6 +135,7 @@ function cloneSnapshot(): DesignDeskSnapshot {
   const state = getState();
   return {
     mode: state.mode,
+    theme: state.theme,
     scale: state.scale,
     activePictureId: state.activePictureId,
     selection: structuredClone(state.selection),
@@ -139,11 +154,16 @@ function helpLines(): string[] {
     "SimpleGUIDesignDeskAPI usage:",
     "1) window.SimpleGUIDesignDeskApi.snapshot()",
     "2) window.SimpleGUIDesignDeskApi.setMode('simulate')",
-    "3) window.SimpleGUIDesignDeskApi.addWidget('list', { x: 4, y: 6 })",
-    "4) window.SimpleGUIDesignDeskApi.sendSimulatorKey('enter')",
-    "5) window.SimpleGUIDesignDeskApi.buildThreeLevelMenu3x3()",
-    "6) window.SimpleGUIDesignDeskApi.playIkunBmpVideo(18)",
-    "7) window.SimpleGUIDesignDeskApi.startDinoGame()",
+    "3) window.SimpleGUIDesignDeskApi.toggleTheme()",
+    "4) window.SimpleGUIDesignDeskApi.addWidget('list', { x: 4, y: 6 })",
+    "5) window.SimpleGUIDesignDeskApi.sendSimulatorKey('enter')",
+    "6) window.SimpleGUIDesignDeskApi.buildThreeLevelMenu3x3()",
+    "7) window.SimpleGUIDesignDeskApi.playIkunBmpVideo(18)",
+    "8) window.SimpleGUIDesignDeskApi.playWallpaperBmpVideo()",
+    "9) window.SimpleGUIDesignDeskApi.playAsciiBmpVideo('plain', 12)",
+    "10) window.SimpleGUIDesignDeskApi.playBmpVideoFromFolder('/ascii_frames_stroke', 12)",
+    "11) window.SimpleGUIDesignDeskApi.playOledExportBmpVideo(30)",
+    "12) window.SimpleGUIDesignDeskApi.startDinoGame()",
   ];
 }
 
@@ -318,9 +338,151 @@ async function loadIkunDanceFrames(): Promise<MonoBitmap[]> {
   return frames;
 }
 
+interface BitmapVideoManifest {
+  fps?: number;
+  files?: string[];
+  sourceFile?: string;
+  style?: string;
+  generatedAt?: string;
+}
+
+type CachedBmpVideoEntry = {
+  frames: MonoBitmap[];
+  fps: number;
+  signature: string;
+};
+
+const cachedBmpVideoByFolder = new Map<string, CachedBmpVideoEntry>();
+
+// Legacy wallpaper cache variables kept for compatibility with existing loader function.
+let cachedWallpaperFrames: MonoBitmap[] | null = null;
+let cachedWallpaperFps: number | null = null;
+let cachedWallpaperSignature: string | null = null;
+
+async function loadBmpFramesWithConcurrency(
+  baseUrl: string,
+  files: string[],
+  concurrency = 20,
+  cacheTag?: string,
+): Promise<MonoBitmap[]> {
+  if (files.length === 0) {
+    return [];
+  }
+
+  const limit = Math.max(1, Math.min(concurrency, files.length));
+  const output: MonoBitmap[] = new Array(files.length);
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= files.length) {
+        return;
+      }
+      const fileName = files[current];
+      const query = cacheTag ? `?v=${encodeURIComponent(cacheTag)}` : "";
+      output[current] = await loadMonochromeBmpFromUrl(
+        `${baseUrl}/${encodeURIComponent(fileName)}${query}`,
+      );
+    }
+  };
+
+  await Promise.all(Array.from({ length: limit }, () => worker()));
+  return output;
+}
+
+function normalizeFolderPath(folderPath: string): string {
+  const trimmed = folderPath.trim();
+  if (!trimmed) {
+    throw new Error("BMP folder path cannot be empty.");
+  }
+
+  const withoutTrailingSlash = trimmed.replace(/\/+$/, "");
+  return withoutTrailingSlash.startsWith("/") ? withoutTrailingSlash : `/${withoutTrailingSlash}`;
+}
+
+function selectBmpFilesFromManifest(manifest: BitmapVideoManifest): string[] {
+  return Array.isArray(manifest.files)
+    ? manifest.files.filter((file) => typeof file === "string" && file.endsWith(".bmp"))
+    : [];
+}
+
+function resolveVideoSignature(
+  folderPath: string,
+  manifest: BitmapVideoManifest,
+  files: string[],
+  fallbackFps: number,
+): string {
+  const generatedAt = typeof manifest.generatedAt === "string" ? manifest.generatedAt : "na";
+  return `${folderPath}|${manifest.sourceFile ?? "unknown"}|${manifest.style ?? "na"}|${files.length}|${fallbackFps}|${generatedAt}`;
+}
+
+async function loadBmpVideoFromFolder(folderPath: string): Promise<{ frames: MonoBitmap[]; fps: number }> {
+  const normalizedFolder = normalizeFolderPath(folderPath);
+  const response = await fetch(`${normalizedFolder}/manifest.json`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to load BMP manifest: ${normalizedFolder}/manifest.json`);
+  }
+
+  const manifest = (await response.json()) as BitmapVideoManifest;
+  const files = selectBmpFilesFromManifest(manifest);
+  if (files.length === 0) {
+    throw new Error(`No BMP frames listed in ${normalizedFolder}/manifest.json`);
+  }
+
+  const manifestFps = Number(manifest.fps);
+  const fallbackFps = Number.isFinite(manifestFps) && manifestFps > 0 ? manifestFps : 24;
+  const signature = resolveVideoSignature(normalizedFolder, manifest, files, fallbackFps);
+  const cached = cachedBmpVideoByFolder.get(normalizedFolder);
+
+  if (cached && cached.signature === signature) {
+    return { frames: cached.frames, fps: cached.fps };
+  }
+
+  const frames = await loadBmpFramesWithConcurrency(normalizedFolder, files, 24, signature);
+  cachedBmpVideoByFolder.set(normalizedFolder, {
+    frames,
+    fps: fallbackFps,
+    signature,
+  });
+  return { frames, fps: fallbackFps };
+}
+
+async function loadWallpaperFrames(): Promise<{ frames: MonoBitmap[]; fps: number }> {
+  const response = await fetch("/wallpaper_frames/manifest.json");
+  if (!response.ok) {
+    throw new Error("加载 wallpaper manifest 失败。");
+  }
+
+  const manifest = (await response.json()) as BitmapVideoManifest;
+  const files = Array.isArray(manifest.files)
+    ? manifest.files.filter((file) => typeof file === "string" && file.endsWith(".bmp"))
+    : [];
+  if (files.length === 0) {
+    throw new Error("wallpaper manifest 中没有可用的 BMP 帧。");
+  }
+
+  const manifestFps = Number(manifest.fps);
+  const fallbackFps = Number.isFinite(manifestFps) && manifestFps > 0 ? manifestFps : 24;
+  const generatedAt = typeof manifest.generatedAt === "string" ? manifest.generatedAt : "na";
+  const signature = `${manifest.sourceFile ?? "unknown"}|${manifest.style ?? "na"}|${files.length}|${fallbackFps}|${generatedAt}`;
+
+  if (cachedWallpaperFrames && cachedWallpaperFps && cachedWallpaperSignature === signature) {
+    return { frames: cachedWallpaperFrames, fps: cachedWallpaperFps };
+  }
+
+  const frames = await loadBmpFramesWithConcurrency("/wallpaper_frames", files, 24, signature);
+
+  cachedWallpaperFrames = frames;
+  cachedWallpaperFps = fallbackFps;
+  cachedWallpaperSignature = signature;
+  return { frames, fps: fallbackFps };
+}
+
 function createDesignDeskApi(): DesignDeskApi {
   return {
-    version: "0.4.0",
+    version: "0.6.0",
     name: "SimpleGUIDesignDeskAPI",
     help: () => helpLines(),
     snapshot: () => cloneSnapshot(),
@@ -328,6 +490,8 @@ function createDesignDeskApi(): DesignDeskApi {
     parseProjectText: (text) => parseProjectDocument(text),
     exportArtifact: (kind) => buildExportArtifact(getState().project, kind),
     setMode: (mode) => getState().setMode(mode),
+    setTheme: (theme) => getState().setTheme(theme),
+    toggleTheme: () => getState().toggleTheme(),
     setScale: (scale) => getState().setScale(scale as ScaleOption),
     undo: () => getState().undo(),
     redo: () => getState().redo(),
@@ -405,6 +569,73 @@ function createDesignDeskApi(): DesignDeskApi {
         name: "IKUN BMP Dance",
         frames,
         fps: Math.max(1, Math.round(fps)),
+        loop: true,
+      });
+      return cloneSnapshot();
+    },
+    playWallpaperBmpVideo: async (fps) => {
+      const { frames, fps: manifestFps } = await loadWallpaperFrames();
+      const playbackFps =
+        typeof fps === "number" && Number.isFinite(fps) && fps > 0
+          ? Math.max(1, Math.round(fps))
+          : manifestFps;
+      getState().loadTemplate("blank");
+      getState().startVideoOverlay({
+        name: "Wallpaper BMP Video",
+        frames,
+        fps: playbackFps,
+        loop: true,
+      });
+      return cloneSnapshot();
+    },
+    playBmpVideoFromFolder: async (folderPath, fps, overlayName) => {
+      const normalizedFolder = normalizeFolderPath(folderPath);
+      const { frames, fps: manifestFps } = await loadBmpVideoFromFolder(normalizedFolder);
+      const playbackFps =
+        typeof fps === "number" && Number.isFinite(fps) && fps > 0
+          ? Math.max(1, Math.round(fps))
+          : manifestFps;
+      const finalOverlayName =
+        typeof overlayName === "string" && overlayName.trim()
+          ? overlayName.trim()
+          : `BMP Video ${normalizedFolder}`;
+      getState().loadTemplate("blank");
+      getState().startVideoOverlay({
+        name: finalOverlayName,
+        frames,
+        fps: playbackFps,
+        loop: true,
+      });
+      return cloneSnapshot();
+    },
+    playAsciiBmpVideo: async (mode = "plain", fps) => {
+      const folderPath = mode === "plain" ? "/ascii_frames_plain" : "/ascii_frames_stroke";
+      const { frames, fps: manifestFps } = await loadBmpVideoFromFolder(folderPath);
+      const playbackFps =
+        typeof fps === "number" && Number.isFinite(fps) && fps > 0
+          ? Math.max(1, Math.round(fps))
+          : manifestFps;
+      getState().loadTemplate("blank");
+      getState().startVideoOverlay({
+        name: `ASCII BMP (${mode})`,
+        frames,
+        fps: playbackFps,
+        loop: true,
+      });
+      return cloneSnapshot();
+    },
+    playOledExportBmpVideo: async (fps) => {
+      const folderPath = "/oled_export_frames";
+      const { frames, fps: manifestFps } = await loadBmpVideoFromFolder(folderPath);
+      const playbackFps =
+        typeof fps === "number" && Number.isFinite(fps) && fps > 0
+          ? Math.max(1, Math.round(fps))
+          : manifestFps;
+      getState().loadTemplate("blank");
+      getState().startVideoOverlay({
+        name: "OLED Export BMP Video",
+        frames,
+        fps: playbackFps,
         loop: true,
       });
       return cloneSnapshot();
